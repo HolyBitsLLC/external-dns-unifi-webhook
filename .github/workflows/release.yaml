@@ -38,7 +38,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository }}
+            ghcr.io/holybitsllc/external-dns-unifi-webhook
           tags: |
             type=semver,pattern={{version}},prefix=v
             type=semver,pattern={{major}}.{{minor}},prefix=v
@@ -64,7 +64,7 @@ jobs:
           context: .
           file: ./Containerfile
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=ghcr.io/holybitsllc/external-dns-unifi-webhook,push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=build-${{ steps.platform.outputs.pair }}
           cache-to: type=gha,scope=build-${{ steps.platform.outputs.pair }},mode=max
           labels: ${{ steps.meta.outputs.labels }}
@@ -116,7 +116,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository }}
+            ghcr.io/holybitsllc/external-dns-unifi-webhook
           tags: |
             type=semver,pattern={{version}},prefix=v
             type=semver,pattern={{major}}.{{minor}},prefix=v
@@ -137,7 +137,7 @@ jobs:
           images=()
           for digest_file in *; do
             [[ -f "$digest_file" ]] || continue
-            images+=("ghcr.io/${{ github.repository }}@sha256:${digest_file}")
+            images+=("ghcr.io/holybitsllc/external-dns-unifi-webhook@sha256:${digest_file}")
           done
 
           # Create multi-arch manifest
