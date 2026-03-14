@@ -244,9 +244,11 @@ func hasAnyPortForwardIntent(changes *plan.Changes) bool {
 }
 
 func endpointHasUniFiIntent(ep *endpoint.Endpoint) bool {
-	enabled, ok := ep.GetBoolProviderSpecificProperty(providerSpecificUniFiDNS)
-	if ok && enabled {
-		return true
+	if raw, ok := ep.GetProviderSpecificProperty(providerSpecificUniFiDNS); ok {
+		value := strings.TrimSpace(strings.ToLower(raw))
+		if value == "true" || value == "1" || value == "yes" || value == "on" {
+			return true
+		}
 	}
 
 	if _, hasPortForward := ep.GetProviderSpecificProperty(providerSpecificUniFiPortForward); hasPortForward {
