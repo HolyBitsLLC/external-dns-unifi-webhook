@@ -8,6 +8,7 @@ import (
 type Config struct {
 	Host               string `env:"UNIFI_HOST,notEmpty"`
 	APIKey             string `env:"UNIFI_API_KEY"             envDefault:""`
+	APIKeyFile         string `env:"UNIFI_API_KEY_FILE"        envDefault:""`
 	User               string `env:"UNIFI_USER"                envDefault:""`
 	Password           string `env:"UNIFI_PASS"                envDefault:""`
 	Site               string `env:"UNIFI_SITE"                envDefault:"default"`

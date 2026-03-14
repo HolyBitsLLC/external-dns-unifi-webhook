@@ -2,6 +2,7 @@ package dnsprovider
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -50,6 +51,14 @@ func Init(config *configuration.Config) (provider.Provider, error) {
 	err := env.Parse(&unifiConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading unifi configuration failed")
+	}
+
+	if unifiConfig.APIKey == "" && unifiConfig.APIKeyFile != "" {
+		apiKeyBytes, readErr := os.ReadFile(unifiConfig.APIKeyFile)
+		if readErr != nil {
+			return nil, errors.Wrap(readErr, "reading UNIFI_API_KEY_FILE failed")
+		}
+		unifiConfig.APIKey = strings.TrimSpace(string(apiKeyBytes))
 	}
 
 	p, err := unifi.NewUnifiProvider(domainFilter, &unifiConfig)

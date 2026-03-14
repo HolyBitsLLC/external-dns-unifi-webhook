@@ -20,6 +20,7 @@ import (
 type ClientURLs struct {
 	Login   string
 	Records string
+	PFRules string
 }
 
 // httpClient is the DNS provider client.
@@ -36,6 +37,8 @@ const (
 	unifiLoginPathExternal  = "%s/api/login"
 	unifiRecordPath         = "%s/proxy/network/v2/api/site/%s/static-dns/%s"
 	unifiRecordPathExternal = "%s/v2/api/site/%s/static-dns/%s"
+	unifiPFRulePath         = "%s/proxy/network/api/s/%s/rest/portforward/%s"
+	unifiPFRulePathExternal = "%s/api/s/%s/rest/portforward/%s"
 
 	recordTypeA     = "A"
 	recordTypeAAAA  = "AAAA"
@@ -47,6 +50,27 @@ const (
 
 	errorBodyBufferSize = 512
 )
+
+type unifiAPIEnvelope[T any] struct {
+	Data []T `json:"data"`
+}
+
+// PortForwardRule represents a UniFi port-forward rule.
+//
+//nolint:tagliatelle // UniFi API field names cannot be changed
+type PortForwardRule struct {
+	ID            string `json:"_id,omitempty"`
+	Name          string `json:"name"`
+	Enabled       bool   `json:"enabled"`
+	Proto         string `json:"proto"`
+	Src           string `json:"src"`
+	DestinationIP string `json:"destination_ip"`
+	DstPort       string `json:"dst_port"`
+	Fwd           string `json:"fwd"`
+	FwdPort       string `json:"fwd_port"`
+	PfwdInterface string `json:"pfwd_interface"`
+	Log           bool   `json:"log"`
+}
 
 // newUnifiClient creates a new DNS provider client and logs in to store cookies.
 func newUnifiClient(config *Config) (*httpClient, error) {
@@ -68,12 +92,14 @@ func newUnifiClient(config *Config) (*httpClient, error) {
 		ClientURLs: &ClientURLs{
 			Login:   unifiLoginPath,
 			Records: unifiRecordPath,
+			PFRules: unifiPFRulePath,
 		},
 	}
 
 	if client.ExternalController {
 		client.ClientURLs.Login = unifiLoginPathExternal
 		client.ClientURLs.Records = unifiRecordPathExternal
+		client.ClientURLs.PFRules = unifiPFRulePathExternal
 	}
 
 	if client.APIKey != "" {
@@ -88,6 +114,120 @@ func newUnifiClient(config *Config) (*httpClient, error) {
 	}
 
 	return client, nil
+}
+
+// GetPortForwardRules retrieves the list of port-forward rules from the UniFi controller.
+func (c *httpClient) GetPortForwardRules(ctx context.Context) ([]PortForwardRule, error) {
+	resp, err := c.doRequest(
+		ctx,
+		http.MethodGet,
+		FormatURL(c.ClientURLs.PFRules, c.Host, c.Site),
+		nil,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch port-forward rules from UniFi")
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, NewDataError("read", "get port-forward response body", err)
+	}
+
+	var envelope unifiAPIEnvelope[PortForwardRule]
+	err = json.Unmarshal(bodyBytes, &envelope)
+	if err == nil {
+		return envelope.Data, nil
+	}
+
+	var rules []PortForwardRule
+	err = json.Unmarshal(bodyBytes, &rules)
+	if err != nil {
+		return nil, NewDataError("unmarshal", "port-forward rules", err)
+	}
+
+	return rules, nil
+}
+
+// CreatePortForwardRule creates a new port-forward rule in the UniFi controller.
+func (c *httpClient) CreatePortForwardRule(ctx context.Context, rule PortForwardRule) (*PortForwardRule, error) {
+	jsonBody, err := json.Marshal(rule)
+	if err != nil {
+		return nil, NewDataError("marshal", "port-forward rule", err)
+	}
+
+	resp, err := c.doRequest(
+		ctx,
+		http.MethodPost,
+		FormatURL(c.ClientURLs.PFRules, c.Host, c.Site),
+		bytes.NewReader(jsonBody),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create port-forward rule")
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, NewDataError("read", "create port-forward response body", err)
+	}
+
+	var envelope unifiAPIEnvelope[PortForwardRule]
+	err = json.Unmarshal(bodyBytes, &envelope)
+	if err == nil && len(envelope.Data) > 0 {
+		return &envelope.Data[0], nil
+	}
+
+	var createdRule PortForwardRule
+	err = json.Unmarshal(bodyBytes, &createdRule)
+	if err != nil {
+		return nil, NewDataError("unmarshal", "created port-forward rule", err)
+	}
+
+	return &createdRule, nil
+}
+
+// UpdatePortForwardRule updates an existing port-forward rule in the UniFi controller.
+func (c *httpClient) UpdatePortForwardRule(ctx context.Context, id string, rule PortForwardRule) error {
+	jsonBody, err := json.Marshal(rule)
+	if err != nil {
+		return NewDataError("marshal", "port-forward rule", err)
+	}
+
+	resp, err := c.doRequest(
+		ctx,
+		http.MethodPut,
+		FormatURL(c.ClientURLs.PFRules, c.Host, c.Site, id),
+		bytes.NewReader(jsonBody),
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to update port-forward rule")
+	}
+
+	_ = resp.Body.Close()
+
+	return nil
+}
+
+// DeletePortForwardRule deletes a port-forward rule from the UniFi controller.
+func (c *httpClient) DeletePortForwardRule(ctx context.Context, id string) error {
+	resp, err := c.doRequest(
+		ctx,
+		http.MethodDelete,
+		FormatURL(c.ClientURLs.PFRules, c.Host, c.Site, id),
+		nil,
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete port-forward rule")
+	}
+
+	_ = resp.Body.Close()
+
+	return nil
 }
 
 // GetEndpoints retrieves the list of DNS records from the UniFi controller.

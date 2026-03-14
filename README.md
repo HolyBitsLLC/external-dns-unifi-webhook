@@ -219,6 +219,28 @@ stringData:
 | `REGEXP_DOMAIN_FILTER`           | Regular expression for filtering domains.                        | Empty         |
 | `REGEXP_DOMAIN_FILTER_EXCLUSION` | Regular expression for excluding domains from the filter.        | Empty         |
 
+### UniFi Intent Annotations
+
+When using the webhook provider, ExternalDNS can pass provider-specific properties via
+annotations prefixed with `external-dns.alpha.kubernetes.io/webhook-`.
+
+Use these annotations to enable UniFi-local behavior:
+
+| Annotation | Example | Behavior |
+|---|---|---|
+| `external-dns.alpha.kubernetes.io/webhook-unifi-dns` | `"true"` | Includes the endpoint for UniFi local DNS reconciliation. |
+| `external-dns.alpha.kubernetes.io/webhook-unifi-port-forward` | `"443:8443"` | Ensures a UniFi port-forward rule exists (`WAN 443 -> <target-ip>:8443`). |
+
+Notes:
+
+- `webhook-unifi-port-forward` implies UniFi intent even if `webhook-unifi-dns` is not set.
+- Port-forward automation currently expects an `A` record target with an IPv4 address.
+
+### TODO Status
+
+- [x] Support `unifi-dns: true` intent for local DNS-only reconciliation via webhook provider-specific annotations.
+- [x] Support `unifi-port-forward: <src>:<dst>` and automatically reconcile UniFi port-forward rules.
+
 ## ⭐ Stargazers
 
 <div align="center">
