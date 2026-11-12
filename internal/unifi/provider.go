@@ -84,14 +84,33 @@ var recordTypesWithoutCustomTTL = map[string]struct{}{
 // delete+create forever. A cleared TTL makes the desired state match what the
 // controller will store, so the record converges. A/AAAA/CNAME honor a custom
 // TTL, so AdjustEndpoints leaves them unchanged. See #229.
+//
+// When any endpoint asks for UniFi explicitly (unifi-dns or unifi-port-forward),
+// the batch is treated as opt-in and only the endpoints that asked are kept.
+// Without that filter every record on the site would be managed regardless of
+// intent, which is what the annotations exist to prevent. A batch with no
+// explicit intent keeps every endpoint, so a deployment that annotates nothing
+// behaves exactly as before: filtering an all-unannotated batch would present
+// an empty desired set and delete every record on the site under
+// --policy=sync.
 func (p *UnifiProvider) AdjustEndpoints(endpoints []*endpoint.Endpoint) ([]*endpoint.Endpoint, error) {
+	optIn := slices.ContainsFunc(endpoints, endpointHasUniFiIntent)
+
+	adjusted := make([]*endpoint.Endpoint, 0, len(endpoints))
 	for _, ep := range endpoints {
+		if ep == nil {
+			continue
+		}
+		if optIn && !endpointHasUniFiIntent(ep) {
+			continue
+		}
 		if _, managed := recordTypesWithoutCustomTTL[ep.RecordType]; managed {
 			ep.RecordTTL = 0
 		}
+		adjusted = append(adjusted, ep)
 	}
 
-	return endpoints, nil
+	return adjusted, nil
 }
 
 // Records returns the list of records in the DNS provider.
@@ -217,7 +236,10 @@ func (p *UnifiProvider) ApplyChanges(ctx context.Context, changes *plan.Changes)
 		return err
 	}
 
-	return nil
+	// Port-forward reconciliation runs after the DNS phases and sequentially:
+	// the rules form one indexed set, while the DNS phases above run
+	// concurrently, so mutating that set from them would race.
+	return p.reconcilePortForwards(ctx, changes)
 }
 
 // indexRecordIDs groups record IDs by name+type so the delete path can

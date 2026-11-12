@@ -194,6 +194,19 @@ Configure `--domain-filter` (and its variants) on the ExternalDNS controller, no
 
 The webhook serves `/healthz` and `/readyz` on both ports. Kubernetes probes can therefore target the webhook port directly. You do not have to expose a second container port through the chart.
 
+### Provider-specific annotations
+
+ExternalDNS copies the annotations below into the endpoint's `providerSpecific` properties, which the webhook reads by name.
+
+| Annotation                                                | Value                 | Effect                                                                       |
+| --------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------- |
+| `external-dns.alpha.kubernetes.io/webhook-unifi-dns`      | `"true"`              | Marks the endpoint as UniFi intent, so the webhook reconciles it.             |
+| `external-dns.alpha.kubernetes.io/webhook-unifi-port-forward` | `"<src>:<dst>"`   | Also manages a WAN port-forward rule from `src` to the target's `dst` port.   |
+
+`unifi-port-forward` implies UniFi intent. Its target must be an IPv4 address, because the rule forwards to the address in the A record.
+
+Annotation intent is opt-in per batch: once any endpoint in a reconcile asks for UniFi, only the endpoints that ask are managed. A batch with no annotations at all keeps every endpoint, so an install that never annotates anything behaves exactly as it did before these properties existed.
+
 ## Upgrading
 
 The move to UniFi Network 10.3.58 introduced breaking changes:
