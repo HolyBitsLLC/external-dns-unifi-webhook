@@ -1,8 +1,10 @@
 package unifi
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -33,7 +35,8 @@ var siteUUIDRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-
 // Config represents the configuration for the UniFi API.
 type Config struct {
 	Host              string        `env:"UNIFI_HOST,notEmpty"`
-	APIKey            string        `env:"UNIFI_API_KEY,notEmpty,unset"`
+	APIKey            string        `env:"UNIFI_API_KEY,unset"       envDefault:""`
+	APIKeyFile        string        `env:"UNIFI_API_KEY_FILE"        envDefault:""`
 	Site              string        `env:"UNIFI_SITE"                envDefault:"default"`
 	ConsoleID         string        `env:"UNIFI_CONSOLE_ID"          envDefault:""`
 	SkipTLSVerify     bool          `env:"UNIFI_SKIP_TLS_VERIFY"     envDefault:"true"`
@@ -51,6 +54,27 @@ type Config struct {
 	// network error and, once retries are exhausted, a 5xx, as long as
 	// attempts × timeout + backoff stays below that budget.
 	RequestTimeout time.Duration `env:"UNIFI_REQUEST_TIMEOUT" envDefault:"0"`
+}
+
+// resolveAPIKey loads the API key from APIKeyFile when UNIFI_API_KEY is unset,
+// so the key can be mounted as a file instead of being exposed as an
+// environment variable. UNIFI_API_KEY wins if both are set, which keeps an
+// explicit env var authoritative and lets a file mount act as a fallback.
+func (c *Config) resolveAPIKey() error {
+	if c.APIKey != "" || c.APIKeyFile == "" {
+		return nil
+	}
+
+	key, err := os.ReadFile(c.APIKeyFile)
+	if err != nil {
+		return fmt.Errorf("reading UNIFI_API_KEY_FILE %q: %w", c.APIKeyFile, err)
+	}
+
+	// A file written by a secret store almost always ends in a newline, and the
+	// controller rejects a key with trailing whitespace.
+	c.APIKey = strings.TrimSpace(string(key))
+
+	return nil
 }
 
 // isCloud reports whether requests route through the Ubiquiti cloud connector
@@ -93,6 +117,9 @@ func (c Config) Validate() error {
 	}
 	if cloudAPIHosts[u.Host] && c.ConsoleID == "" {
 		return fmt.Errorf("UNIFI_CONSOLE_ID is required when UNIFI_HOST points at the Ubiquiti cloud API (%q)", u.Host)
+	}
+	if c.APIKey == "" {
+		return errors.New("UNIFI_API_KEY or UNIFI_API_KEY_FILE is required")
 	}
 	if c.Site == "" {
 		return fmt.Errorf("UNIFI_SITE must not be empty")

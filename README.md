@@ -123,7 +123,8 @@ See the [chart values](https://github.com/kubernetes-sigs/external-dns/blob/mast
 | Variable                    | Description                                                                           | Default   |
 | --------------------------- | ------------------------------------------------------------------------------------- | --------- |
 | `UNIFI_HOST`                | Controller address, or `https://api.ui.com` for the cloud connector (**required**).   | —         |
-| `UNIFI_API_KEY`             | API key used to authenticate (**required**). Local and cloud keys differ — see below. | —         |
+| `UNIFI_API_KEY`             | API key used to authenticate (**required** unless `UNIFI_API_KEY_FILE` is set). Local and cloud keys differ — see below. | —         |
+| `UNIFI_API_KEY_FILE`        | Path to a file containing the API key, for secret-file mounts. `UNIFI_API_KEY` takes precedence. | —         |
 | `UNIFI_SITE`                | Site name. See [Finding the site name](#finding-the-site-name).                       | `default` |
 | `UNIFI_CONSOLE_ID`          | Console ID. Setting this routes requests through the `api.ui.com` cloud connector.    | —         |
 | `UNIFI_SKIP_TLS_VERIFY`     | Skip TLS verification. Ignored in cloud mode.                                         | `true`    |

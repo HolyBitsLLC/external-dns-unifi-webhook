@@ -47,6 +47,9 @@ type UnifiProvider struct {
 //
 //nolint:ireturn // Must return provider.Provider interface as required by external-dns API
 func NewUnifiProvider(config *Config) (provider.Provider, error) {
+	if err := config.resolveAPIKey(); err != nil {
+		return nil, fmt.Errorf("resolving UniFi API key: %w", err)
+	}
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid unifi configuration: %w", err)
 	}

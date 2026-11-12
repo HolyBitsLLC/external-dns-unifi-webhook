@@ -1,6 +1,8 @@
 package unifi
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -50,6 +52,7 @@ func TestConfigValidate(t *testing.T) {
 		{"site empty", func(c *Config) { c.Site = "" }, true},
 		{"site is an Integration API UUID", func(c *Config) { c.Site = testSiteUUID }, true},
 		{"site with a dash is fine", func(c *Config) { c.Site = "branch-office" }, false},
+		{"api key empty", func(c *Config) { c.APIKey = "" }, true},
 	}
 
 	for _, tt := range tests {
@@ -62,6 +65,66 @@ func TestConfigValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigResolveAPIKey(t *testing.T) {
+	writeKey := func(t *testing.T, contents string) string {
+		t.Helper()
+
+		path := filepath.Join(t.TempDir(), "api-key")
+		if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+			t.Fatalf("writing API key file: %v", err)
+		}
+
+		return path
+	}
+
+	t.Run("file supplies the key and trailing newline is trimmed", func(t *testing.T) {
+		cfg := validUnifiConfig()
+		cfg.APIKey = ""
+		cfg.APIKeyFile = writeKey(t, "key-from-file\n")
+
+		if err := cfg.resolveAPIKey(); err != nil {
+			t.Fatalf("resolveAPIKey() error = %v", err)
+		}
+		if cfg.APIKey != "key-from-file" {
+			t.Errorf("APIKey = %q, want key-from-file", cfg.APIKey)
+		}
+	})
+
+	t.Run("env key wins over file", func(t *testing.T) {
+		cfg := validUnifiConfig()
+		cfg.APIKeyFile = writeKey(t, "key-from-file\n")
+
+		if err := cfg.resolveAPIKey(); err != nil {
+			t.Fatalf("resolveAPIKey() error = %v", err)
+		}
+		if cfg.APIKey != testKeyA {
+			t.Errorf("APIKey = %q, want %q", cfg.APIKey, testKeyA)
+		}
+	})
+
+	t.Run("no file configured leaves the key untouched", func(t *testing.T) {
+		cfg := validUnifiConfig()
+		cfg.APIKey = ""
+
+		if err := cfg.resolveAPIKey(); err != nil {
+			t.Fatalf("resolveAPIKey() error = %v", err)
+		}
+		if cfg.APIKey != "" {
+			t.Errorf("APIKey = %q, want empty", cfg.APIKey)
+		}
+	})
+
+	t.Run("unreadable file is an error", func(t *testing.T) {
+		cfg := validUnifiConfig()
+		cfg.APIKey = ""
+		cfg.APIKeyFile = filepath.Join(t.TempDir(), "missing")
+
+		if err := cfg.resolveAPIKey(); err == nil {
+			t.Fatal("resolveAPIKey() error = nil, want an error")
+		}
+	})
 }
 
 func TestConfigBaseURL(t *testing.T) {
